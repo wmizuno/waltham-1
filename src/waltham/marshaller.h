@@ -34,6 +34,7 @@
 #include <sys/uio.h>
 #include <sys/un.h>
 #include <errno.h>
+#include <signal.h>
 
 #include "message.h"
 #include "marshaller_log.h"
@@ -42,7 +43,14 @@ static inline int send_all (int sock, const struct iovec *iov, int iovcnt)
 {
    int ret;
 
+   signal(SIGPIPE, SIG_IGN);
+
    do {
+      if (errno == EPIPE) {
+         fprintf(stderr, "send_all %d : %s\n", ret, strerror(errno));
+         errno = 0;
+         ret = 0;
+      }
       ret = writev (sock, iov, iovcnt);
    } while (ret == -1 && errno == EINTR);
 
