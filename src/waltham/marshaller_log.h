@@ -27,10 +27,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <waltham-connection.h>
 
 /* Comment/uncomment to disable/enable debugging log */
 #define DEBUG
 //#define PROFILE
+int debug_message;
 
 #ifdef DEBUG
 static inline void DEBUG_STAMP (void) {
@@ -45,15 +47,17 @@ static inline void DEBUG_STAMP (void) {
 }
 
 static inline void DEBUG_TYPE (const char *type) {
-   printf (" %s\n", type);
+   if(debug_message == 1)
+      printf (" %s\n", type);
 }
 
 static inline void STREAM_DEBUG( unsigned char *data, int sz, char *preamble ){
    int itr;
    unsigned char *p = data;
-   for( itr = 0; itr < sz; itr++ ){
-       printf( "%02x", p[itr] );
-   }
+   if(debug_message == 1)
+      for( itr = 0; itr < sz; itr++ ){
+         printf( "%02x", p[itr] );
+      }
 }
 
 static inline void STREAM_DEBUG_DATA (unsigned char *data, int sz) {

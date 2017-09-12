@@ -49,9 +49,11 @@ wth_debug(const char *fmt, ...)
 {
 	va_list argp;
 
-	va_start(argp, fmt);
-	wth_pfx_print("debug", fmt, argp);
-	va_end(argp);
+	if(debug_message == 1) {
+		va_start(argp, fmt);
+		wth_pfx_print("debug", fmt, argp);
+		va_end(argp);
+	}
 }
 
 void

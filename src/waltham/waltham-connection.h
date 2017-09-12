@@ -36,6 +36,8 @@
 extern "C" {
 #endif
 
+extern int debug_message;
+
 /** \file
  *
  * \brief Waltham connection management API

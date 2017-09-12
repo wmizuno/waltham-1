@@ -38,6 +38,8 @@
 #include "waltham-private.h"
 #include "waltham-util.h"
 
+int debug_message = 0;
+
 struct wth_connection {
 	int fd;
 	enum wth_connection_side side;
@@ -62,11 +64,16 @@ wth_connect_to_server(const char *host, const char *port)
 {
 	struct wth_connection *conn = NULL;
 	int fd;
+	char *debug;
 
 	fd = connect_to_host(host, port);
 
 	if (fd >= 0)
 		conn = wth_connection_from_fd(fd, WTH_CONNECTION_SIDE_CLIENT);
+
+	debug = getenv("WALTHAM_DEBUG");
+	if(debug && (strcmp(debug, "1") == 0))
+		debug_message = 1;
 
 	return conn;
 }
