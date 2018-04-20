@@ -93,66 +93,46 @@ static inline int recv_all (int sock, struct iovec *iov, int iovcnt)
 #define PADDED(sz) \
    (((sz) + 3) & ~3)
 
-#define START_MESSAGE(name, sz, opcode) \
+#define START_MESSAGE(conn, name, sz, opcode) \
    const char *msg_name __attribute__((unused)) = name; \
    hdr_t hdr = { 0, sz, opcode, 0 }; \
    int send_ret; \
    struct iovec marshaller_params[16]; \
    int marshaller_paramid = 1; \
    int param_padding __attribute__((unused)) = 0; \
-   marshaller_params[0].iov_base = (void *) &hdr; \
-   marshaller_params[0].iov_len = sizeof(hdr_t); \
+   wth_connection_start_write(conn, &hdr, sz);  \
    DEBUG_STAMP (); \
    STREAM_DEBUG ((unsigned char *) &hdr, sizeof (hdr), "header -> ");
 
-#define END_MESSAGE(conn) \
-   send_ret = send_all (wth_connection_get_fd(conn), marshaller_params, marshaller_paramid); \
-   if (send_ret == -1) \
-      exit (errno); \
-   DEBUG_TYPE(msg_name);
-
-#define ADD_PADDING(sz) \
+#define ADD_PADDING(conn, sz)		 \
    param_padding = (4 - ((sz) & 3)) & 3; \
    if (param_padding > 0) { \
-      marshaller_params[marshaller_paramid].iov_base = (void *) &marshaller_paramid; \
-      marshaller_params[marshaller_paramid].iov_len = param_padding; \
+      wth_buffer_put(conn, (void *) &marshaller_paramid, param_padding); \
       marshaller_paramid++; \
    }
 
-#define SERIALIZE_PARAM(param, sz) \
-   marshaller_params[marshaller_paramid].iov_base = (void *) param; \
-   marshaller_params[marshaller_paramid].iov_len = sz; \
-   marshaller_paramid++; \
-   ADD_PADDING (sz); \
+#define SERIALIZE_PARAM(conn, param, sz)				    \
+   wth_buffer_put(conn, (void *) param, sz); \
+   ADD_PADDING (conn, sz);					\
    STREAM_DEBUG ((unsigned char *) param, sz, "param  -> ");
 
-#define SERIALIZE_PARAM_SILENT(param, sz) \
-   marshaller_params[marshaller_paramid].iov_base = param; \
-   marshaller_params[marshaller_paramid].iov_len = sz; \
-   marshaller_paramid++; \
-   ADD_PADDING (sz); \
+#define SERIALIZE_PARAM_SILENT(conn, param, sz)		   \
+   wth_buffer_put(conn, (void *) param, sz); \
+   ADD_PADDING (conn, sz);			\
    STREAM_DEBUG_DATA (param, sz);
 
-#define SERIALIZE_DATA(data, sz) \
-   marshaller_params[marshaller_paramid].iov_base = (void *) &sz; \
-   marshaller_params[marshaller_paramid].iov_len = sizeof (int); \
-   marshaller_paramid++; \
+#define SERIALIZE_DATA(conn, data, sz)				  \
+   wth_buffer_put(conn, (void *) &sz, sizeof (int)); \
    STREAM_DEBUG ((unsigned char *) &sz, sizeof (int), "data sz   -> "); \
-   marshaller_params[marshaller_paramid].iov_base = data; \
-   marshaller_params[marshaller_paramid].iov_len = sz; \
-   marshaller_paramid++; \
-   ADD_PADDING (sz); \
+   wth_buffer_put(conn, (void *) data, sz); \
+   ADD_PADDING (conn, sz);					\
    STREAM_DEBUG ((unsigned char *) data, sz, "data   -> ");
 
-#define SERIALIZE_ARRAY(array) \
-   marshaller_params[marshaller_paramid].iov_base = (void *) &array->size; \
-   marshaller_params[marshaller_paramid].iov_len = sizeof (size_t); \
-   marshaller_paramid++; \
+#define SERIALIZE_ARRAY(conn, array) \
+   wth_buffer_put(conn, (void *) &array->size, sizeof (size_t));  \
    STREAM_DEBUG ((unsigned char *) &sz, sizeof (int), "array sz  -> "); \
-   marshaller_params[marshaller_paramid].iov_base = array->data; \
-   marshaller_params[marshaller_paramid].iov_len = array->size; \
-   marshaller_paramid++; \
-   ADD_PADDING (array->size); \
+   wth_buffer_put(conn, array->data, array->size);  \
+   ADD_PADDING (conn, array->size); \
    STREAM_DEBUG ((unsigned char *) array->data, array->size, "array  -> ");
 
 #define FLUSH_RECV() \

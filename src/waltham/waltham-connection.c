@@ -40,8 +40,14 @@
 
 int debug_message = 0;
 
+struct wth_buffer {
+	char data[4096];
+	uint32_t head, tail;
+};
+
 struct wth_connection {
 	int fd;
+	struct wth_buffer out;
 	enum wth_connection_side side;
 
 	ClientReader *reader;
@@ -276,12 +282,89 @@ wth_connection_destroy(struct wth_connection *conn)
 	free(conn);
 }
 
+static void
+wth_buffer_get_iov(struct wth_buffer *b, struct iovec *iov, int *count)
+{
+	uint32_t head, tail;
+
+	head = b->head;
+	tail = b->tail;
+	if (tail < head) {
+		iov[0].iov_base = b->data + tail;
+		iov[0].iov_len = head - tail;
+		*count = 1;
+	} else if (head == 0) {
+		iov[0].iov_base = b->data + tail;
+		iov[0].iov_len = sizeof(b->data) - tail;
+		*count = 1;
+	} else {
+		iov[0].iov_base = b->data + tail;
+		iov[0].iov_len = sizeof(b->data) - tail;
+		iov[1].iov_base = b->data;
+		iov[1].iov_len = head;
+		*count = 2;
+	}
+}
+
 WTH_EXPORT int
 wth_connection_flush(struct wth_connection *conn)
 {
-	/* FIXME currently we don't use the ringbuffer to send messages,
-	 * they are just written to the fd in write_all() in
-	 * src/marshaller/marshaller.h. */
+	struct iovec iov[2];
+	int ret = 0;
+	int count;
+
+	while (conn->out.head - conn->out.tail > 0) {
+		wth_buffer_get_iov(&conn->out, iov, &count);
+		ret = send_all(wth_connection_get_fd(conn), iov, count);
+		if (ret == -1)
+			return -1;
+
+		conn->out.tail += ret;
+		if (conn->out.tail > conn->out.head)
+			conn->out.tail = conn->out.head;
+	}
+
+	return 0;
+}
+
+WTH_EXPORT int
+wth_buffer_put(struct wth_connection *conn, const void *data, size_t count)
+{
+	struct wth_buffer *b = &conn->out;
+	uint32_t head, size;
+
+	if (count > sizeof(b->data)) {
+		wth_debug(stderr,"Data too big for buffer (%d > %d).\n",
+			     count, sizeof(b->data));
+		errno = E2BIG;
+		return -1;
+	}
+
+	head = b->head;
+	if (head + count <= sizeof(b->data)) {
+		memcpy(b->data + head, data, count);
+		b->head += count;
+	} else {
+		size = sizeof(b->data) - head;
+		memcpy(b->data + head, data, size);
+		memcpy(b->data, (const char *) data + size, count - size);
+		b->head = count - size;
+	}
+
+	return 0;
+}
+
+WTH_EXPORT int
+wth_connection_start_write(struct wth_connection *conn, void *data, size_t size)
+{
+	if (conn->out.head + size
+	    > ARRAY_LENGTH(conn->out.data)) {
+		if (wth_connection_flush(conn) < 0)
+			return -1;
+	}
+
+	if (wth_buffer_put(conn, data, sizeof(data)) < 0)
+		return -1;
 
 	return 0;
 }

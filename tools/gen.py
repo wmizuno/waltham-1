@@ -151,7 +151,8 @@ def marshaller_generator(funcdef, opcode):
     outstr += '   START_TIMING("' + funcname + '", "' + fmt_string + '"' + fmt_params + ');\n'
 
     # serialize message header
-    outstr += '   START_MESSAGE("{}", sz, {});\n'.format(funcname, opcode)
+    outstr += '   START_MESSAGE(((struct wth_object *){})->connection,'.format(funcdef.get('param0').get('val'))
+    outstr += ' "{}", sz, {});\n'.format(funcname, opcode)
 
     # serialize params
     haveparams = 1
@@ -174,26 +175,29 @@ def marshaller_generator(funcdef, opcode):
                     var_attr_size += '   sz += sizeof (unsigned int) + PADDED(' + params.get('val') + '_sz);\n'
 
                 # we use SERIALIZE_DATA instead of SERIALIZE_PARAM for variable-size params
-                outstr += '   SERIALIZE_DATA( (void *)' + params.get('val') + ', ' + params.get('val') + '_sz);\n'
+                outstr += '   SERIALIZE_DATA(((struct wth_object *){})->connection, '.format(funcdef.get('param0').get('val'))
+                outstr += params.get('val') + ', ' + params.get('val') + '_sz);\n'
 
             else:
                 if params.get('is_array'):
-                    outstr += '   SERIALIZE_ARRAY( ' + params.get('val') + ' );\n'
+                    outstr += '   SERIALIZE_ARRAY(((struct wth_object *){})->connection, '.format(funcdef.get('param0').get('val'))
+                    outstr += params.get('val') + ' );\n'
                 else:
                     if params.get('new_id'):
-                        outstr += '   SERIALIZE_PARAM( (void *)&((struct wth_object *)ret)->id, sizeof(uint32_t) );\n'
+                        outstr += '   SERIALIZE_PARAM(((struct wth_object *){})->connection, '.format(funcdef.get('param0').get('val'))
+                        outstr += '(void *)&((struct wth_object *)ret)->id, sizeof(uint32_t) );\n'
                     elif params.get('object'):
-                        outstr += '   SERIALIZE_PARAM( (void *)&((struct wth_object *)' + params.get('val') + ')->id, sizeof(uint32_t) );\n'
+                        outstr += '   SERIALIZE_PARAM(((struct wth_object *){})->connection, '.format(funcdef.get('param0').get('val'))
+                        outstr += '(void *)&((struct wth_object *)' + params.get('val') + ')->id, sizeof(uint32_t) );\n'
                     elif params.get('is_counter'):
                         # Don't serialize the size here, it gets sent through SERIALIZE_DATA
                         pass
                     else:
-                        outstr += '   SERIALIZE_PARAM( (void *)&' + params.get('val') + ', sizeof(' + params.get('val') + ') );\n'
+                        outstr += '   SERIALIZE_PARAM(((struct wth_object *){})->connection, '.format(funcdef.get('param0').get('val'))
+                        outstr += '(void *)&' + params.get('val') + ', sizeof(' + params.get('val') + ') );\n'
             paramitr += 1
         else:
             break
-
-    outstr += '   END_MESSAGE(((struct wth_object *){})->connection);\n'.format(funcdef.get('param0').get('val'))
 
     if var_attr_size != "":
         outstr = outstr.replace('VAR_ATTR_SIZE', var_attr_size + '\n')
