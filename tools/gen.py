@@ -236,6 +236,7 @@ def demarshaller_generator(funcdef, opcode):
     params_call = ''
     fmt_string = ''
     fmt_params = ''
+    param_null_check = ''
     while haveparams:
         searchstr = ('param' + str(paramitr))
         haveparams = searchstr in funcdef
@@ -282,7 +283,10 @@ def demarshaller_generator(funcdef, opcode):
 
                 fmt_string += '%u'
                 fmt_params += ', ((struct wth_object *)' + params.get('val') + ')->id'
-
+                if param_null_check == '':
+                    param_null_check += params.get('val') + ' != NULL'
+                else:
+                    param_null_check += ' && ' + params.get('val') + ' != NULL'
             elif params.get('object'):
                 type_ = 'uint32_t'
                 objtype = params.get('type')
@@ -293,7 +297,10 @@ def demarshaller_generator(funcdef, opcode):
 
                 fmt_string += '%u'
                 fmt_params += ', ((struct wth_object *)' + params.get('val') + ')->id'
-
+                if param_null_check == '':
+                    param_null_check += params.get('val') + ' != NULL'
+                else:
+                    param_null_check += ' && ' + params.get('val') + ' != NULL'
             else:
                 # input parameters: local variable initialized to point to the
                 # right offset in the received message
@@ -318,6 +325,8 @@ def demarshaller_generator(funcdef, opcode):
     if paramitr != 0:
         code += '\n'
 
+    if param_null_check != '':
+        code += 'if('+ param_null_check + ')\n'
     code += '  wth_debug ("' + apifuncname + '(' + fmt_string + ') (opcode ' \
             + str(opcode) + ') called."' + fmt_params + ');\n'
 
